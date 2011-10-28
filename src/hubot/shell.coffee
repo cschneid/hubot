@@ -1,12 +1,12 @@
-Robot = require 'robot'
+Robot = require '../robot'
 
 class Shell extends Robot
   send: (user, strings...) ->
-    strings.forEach (str) ->
+    for str in strings
       console.log str
 
   reply: (user, strings...) ->
-    strings.forEach (str) =>
+    for str in strings
       @send user, "#{user.name}: #{str}"
 
   run: ->
@@ -17,8 +17,8 @@ class Shell extends Robot
     process.stdin.resume()
     process.stdin.on 'data', (txt) =>
       txt.toString().split("\n").forEach (line) =>
-        return if line.length == 0
-        @receive new Robot.Message user, line
+        return if line.length is 0
+        @receive new Robot.TextMessage user, line
 
     setTimeout =>
       user   = @userForId('1', {name: "Shell"})
@@ -26,4 +26,5 @@ class Shell extends Robot
       holman = @userForId('3', {name: "Zach Holman"})
     , 3000
 
-exports.Shell = Shell
+module.exports = Shell
+

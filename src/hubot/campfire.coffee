@@ -1,17 +1,15 @@
-Robot        = require "robot"
+Robot        = require "../robot"
 HTTPS        = require "https"
 EventEmitter = require("events").EventEmitter
 
 class Campfire extends Robot
   send: (user, strings...) ->
-    strings.forEach (str) =>
+    for str in strings
       @bot.Room(user.room).speak str, (err, data) ->
-        if err
-          console.log "campfire error: #{err}"
+        console.log "campfire error: #{err}" if err
 
   reply: (user, strings...) ->
-    strings.forEach (str) =>
-      @send user, "#{user.name}: #{str}"
+    @send user, "#{user.name}: #{str}" for str in strings
 
   run: ->
     self = @
@@ -20,36 +18,49 @@ class Campfire extends Robot
       rooms:   process.env.HUBOT_CAMPFIRE_ROOMS
       account: process.env.HUBOT_CAMPFIRE_ACCOUNT
 
-    console.log options
     bot = new CampfireStreaming(options)
-    console.log bot
 
-    bot.on "TextMessage", (id, created, room, user, body) ->
+    withAuthor = (callback) -> (id, created, room, user, body) ->
       bot.User user, (err, userData) ->
         if userData.user
           author = self.userForId(userData.user.id, userData.user)
           author.room = room
-          self.receive new Robot.Message(author, body)
+          callback id, created, room, user, body, author
+
+    bot.on "TextMessage", withAuthor (id, created, room, user, body, author) ->
+      unless bot.info.id == author.id
+        self.receive new Robot.TextMessage(author, body)
+
+    bot.on "EnterMessage", withAuthor (id, created, room, user, body, author) ->
+      unless bot.info.id == author.id
+        self.receive new Robot.EnterMessage(author)
+
+    bot.on "LeaveMessage", withAuthor (id, created, room, user, body, author) ->
+      unless bot.info.id == author.id
+        self.receive new Robot.LeaveMessage(author)
 
     bot.Me (err, data) ->
-      console.log data
       bot.info = data.user
       bot.name = bot.info.name
-      bot.rooms.forEach (room_id) ->
-        bot.Room(room_id).join (err, callback) ->
-          bot.Room(room_id).listen()
+      for roomId in bot.rooms
+        do (roomId) ->
+          bot.Room(roomId).join (err, callback) ->
+            bot.Room(roomId).listen()
 
     @bot = bot
 
-exports.Campfire = Campfire
+module.exports = Campfire
 
 class CampfireStreaming extends EventEmitter
   constructor: (options) ->
-    @token         = options.token
-    @rooms         = options.rooms.split(",")
-    @account       = options.account
-    @domain        = @account + ".campfirenow.com"
-    @authorization = "Basic " + new Buffer("#{@token}:x").toString("base64")
+    if options.token? and options.rooms? and options.account?
+      @token         = options.token
+      @rooms         = options.rooms.split(",")
+      @account       = options.account
+      @domain        = @account + ".campfirenow.com"
+      @authorization = "Basic " + new Buffer("#{@token}:x").toString("base64")
+    else
+      throw new Error("Not enough parameters provided. I need a token, rooms and account")
 
   Rooms: (callback) ->
     @get "/rooms", callback
@@ -105,7 +116,7 @@ class CampfireStreaming extends EventEmitter
 
         buf = ''
         response.on "data", (chunk) ->
-          if chunk == ' '
+          if chunk is ' '
             # campfire api sends a ' ' heartbeat every 3s
 
           else if chunk.match(/^\s*Access Denied/)
@@ -161,8 +172,8 @@ class CampfireStreaming extends EventEmitter
       "method" : method
       "headers": headers
 
-    if method == "POST"
-      if typeof(body) != "string"
+    if method is "POST"
+      if typeof(body) isnt "string"
         body = JSON.stringify body
 
       body = new Buffer(body)
@@ -174,16 +185,19 @@ class CampfireStreaming extends EventEmitter
         data += chunk
       response.on "end", ->
         if response.statusCode >= 400
-          console.log "campfire error: #{response.statusCode}"
+          switch response.statusCode
+            when 401 then throw new Error("Invalid access token provided, campfire refused the authentication")
+            else console.log "campfire error: #{err}"
+
 
         try
           callback null, JSON.parse(data)
         catch err
-          callback null, data || { }
+          callback null, data or { }
       response.on "error", (err) ->
         callback err, { }
 
-    if method == "POST"
+    if method is "POST"
       request.end(body, 'binary')
     else
       request.end()

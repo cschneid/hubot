@@ -1,4 +1,4 @@
-Robot = require 'robot'
+Robot = require '../robot'
 Http  = require 'http'
 Https = require 'https'
 Qs    = require 'querystring'
@@ -20,8 +20,11 @@ class Twilio extends Robot
         console.log "successful sending #{body}"
 
   reply: (user, strings...) ->
-    strings.forEach (str) =>
+    for str in strings
       @send user, "#{user.name}: #{str}"
+
+  respond: (regex, callback) ->
+    @hear regex, callback
 
   run: ->
     console.log "Hubot: the SMS reader."
@@ -34,12 +37,12 @@ class Twilio extends Robot
       response.writeHead 200, 'Content-Type': 'text/plain'
       response.end()
 
-    server.listen process.env.HUBOT_SMS_PORT, "0.0.0.0"
+    server.listen (parseInt(process.env.PORT) or 8080), "0.0.0.0"
 
   handle: (body, from) ->
-    return if body.length == 0
+    return if body.length is 0
     user = @userForId from
-    @receive new Robot.Message user, body
+    @receive new Robot.TextMessage user, body
 
   post: (message, to, callback) ->
     host = "api.twilio.com"
@@ -66,8 +69,6 @@ class Twilio extends Robot
       path: path
       headers: headers
 
-    console.log opts
-
     request = Https.request opts, (response) ->
       data = ""
 
@@ -85,7 +86,7 @@ class Twilio extends Robot
           callback body.message
 
     request.write params
-
     request.end()
 
-exports.Twilio = Twilio
+module.exports = Twilio
+
