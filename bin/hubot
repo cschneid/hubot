@@ -24,7 +24,7 @@ Switches = [
 
 Options =
   path: "."
-  name: "Hubot"
+  name: "ComvergeBot"
   create: false
   adapter: "stdio"
 

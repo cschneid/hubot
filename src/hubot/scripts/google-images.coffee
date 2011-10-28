@@ -27,11 +27,16 @@ module.exports = (robot) ->
 mustachify = "http://mustachify.me/?src="
 
 imageMe = (msg, query, cb) ->
-  msg.http('http://ajax.googleapis.com/ajax/services/search/images')
-    .query(v: "1.0", rsz: '8', q: query)
-    .get() (err, res, body) ->
-      images = JSON.parse(body)
-      images = images.responseData.results
-      image  = msg.random images
-      cb "#{image.unescapedUrl}#.png"
-
+  try
+    msg.http('http://ajax.googleapis.com/ajax/services/search/images')
+      .query(v: "1.0", rsz: '8', q: query)
+      .get() (err, res, body) ->
+        images = JSON.parse(body)
+        images = images.responseData.results
+        if images.length > 0
+          image  = msg.random images
+          cb "#{image.unescapedUrl}#.png"
+        else
+          cb "Nothing Found"
+  catch error
+    print error
